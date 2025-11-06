@@ -1,23 +1,16 @@
-
-export interface WordPressCredentials {
-  url: string;
-  username: string;
-  password: string; // This is the application password
-}
-
-export interface PostStatus {
+export interface AppStatus {
   type: 'idle' | 'loading' | 'success' | 'error';
   message: string;
 }
 
-export interface RecentPost {
-  id: number;
-  title: {
-    rendered: string;
-  };
-  link: string;
-  date: string;
-  excerpt: {
-    rendered: string;
-  };
+export interface WordPressCredentials {
+    url: string;
+    username: string;
+    password?: string;
+}
+
+export interface GeneratedPost {
+    title: string;
+    content: string;
+    imageBase64: string;
 }
