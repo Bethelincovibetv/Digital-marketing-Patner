@@ -43,8 +43,10 @@ export const SetupTab: React.FC<SetupTabProps> = ({ onCredentialsSet }) => {
       onCredentialsSet(creds);
     } catch (error: any) {
       let errorMessage = `Connection failed: ${error.message}`;
-      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        errorMessage += ". This might be a CORS issue. Please ensure your WordPress site's server is configured to accept requests from this origin.";
+      if (String(error.message).includes('404')) {
+          errorMessage += ". This often means the WordPress REST API endpoint was not found. Please check the following: 1) The Site URL is correct. 2) You have enabled 'Pretty Permalinks' in your WordPress settings (Settings > Permalinks). 3) Your site doesn't have a security plugin blocking REST API access.";
+      } else if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        errorMessage += ". This might be a CORS issue. Please ensure your WordPress site's server is configured to accept requests from this origin. You may need to install a CORS plugin on your WordPress site.";
       }
       setStatus({ type: 'error', message: errorMessage });
       localStorage.removeItem('wp_credentials');

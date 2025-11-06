@@ -8,6 +8,48 @@ import type { WordPressCredentials } from './types.ts';
 import { TABS } from './constants.ts';
 
 const App: React.FC = () => {
+  if (typeof process === 'undefined' || !process.env || !process.env.API_KEY) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white flex items-center justify-center p-4">
+        <div className="max-w-3xl w-full bg-gray-800/50 backdrop-blur-sm rounded-xl shadow-2xl shadow-red-500/10 border border-red-700 p-8">
+          <div className="text-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <h1 className="mt-4 text-3xl font-bold text-red-300">Configuration Error</h1>
+            <p className="mt-2 text-lg text-gray-300">
+              Gemini API key is not configured.
+            </p>
+          </div>
+          <div className="mt-6 text-gray-400 space-y-4">
+             <p>
+              This application requires a Google Gemini API key to function. It is designed to be deployed in an environment where the API key is securely provided as an environment variable.
+            </p>
+            <p>
+              If you are seeing this page after deploying to a platform like <strong>Netlify</strong> or <strong>Vercel</strong>, you need to ensure the <code>API_KEY</code> environment variable is set in your project's settings and made available to your client-side code.
+            </p>
+          </div>
+          <div className="mt-6 text-left bg-gray-900/70 p-4 rounded-lg border border-gray-700">
+            <p className="font-semibold text-gray-300 mb-2">For Static Hosts (like Netlify without a build step):</p>
+            <p className="text-sm text-gray-400 mb-3">You may need to manually inject the variable into your HTML. Go to Site settings &gt; Build &amp; deploy &gt; Post processing &gt; Snippet injection, and add the following script to the <strong>end of the head tag</strong>:</p>
+            <pre className="bg-black/50 p-3 rounded-md text-green-300 overflow-x-auto text-xs"><code>
+              {`<script>
+  window.process = { 
+    env: { 
+      API_KEY: 'YOUR_API_KEY_FROM_ENVIRONMENT_VARIABLE'
+    } 
+  };
+</script>`}
+            </code></pre>
+             <p className="mt-3 text-xs text-gray-500">
+               Note: You should use your hosting provider's feature to substitute the placeholder with the actual key from your environment variables rather than hardcoding it, if possible.
+             </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
   const [activeTab, setActiveTab] = useState<string>(TABS[0].id);
   const [credentials, setCredentials] = useState<WordPressCredentials | null>(null);
 
