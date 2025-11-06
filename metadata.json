@@ -1,0 +1,5 @@
+{
+  "name": "AI WordPress Autoblogger",
+  "description": "A powerful dashboard to generate, edit, and publish blog posts to your WordPress site using AI. Features include content creation, image generation and editing, post management, and text-to-speech previews.",
+  "requestFramePermissions": []
+}
