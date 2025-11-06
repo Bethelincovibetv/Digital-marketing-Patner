@@ -1,10 +1,9 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
-import type { WordPressCredentials, RecentPost, PostStatus } from '../types';
-import { fetchPosts } from '../services/wordpressService';
-import { Button } from './ui/Button';
-import { Alert } from './ui/Alert';
-import { Card } from './ui/Card';
+import type { WordPressCredentials, RecentPost, PostStatus } from '../types.ts';
+import { fetchPosts } from '../services/wordpressService.ts';
+import { Button } from './ui/Button.tsx';
+import { Alert } from './ui/Alert.tsx';
+import { Card } from './ui/Card.tsx';
 
 interface ManagePostsTabProps {
   credentials: WordPressCredentials | null;

@@ -1,13 +1,13 @@
 import React, { useState, useRef } from 'react';
-import type { WordPressCredentials, PostStatus } from '../types';
-import { generateBlogPost, generateSpeech } from '../services/geminiService';
-import { publishPost } from '../services/wordpressService';
-import { Button } from './ui/Button';
-import { Input } from './ui/Input';
-import { Select } from './ui/Select';
-import { Textarea } from './ui/Textarea';
-import { Alert } from './ui/Alert';
-import { Card } from './ui/Card';
+import type { WordPressCredentials, PostStatus } from '../types.ts';
+import { generateBlogPost, generateSpeech } from '../services/geminiService.ts';
+import { publishPost } from '../services/wordpressService.ts';
+import { Button } from './ui/Button.tsx';
+import { Input } from './ui/Input.tsx';
+import { Select } from './ui/Select.tsx';
+import { Textarea } from './ui/Textarea.tsx';
+import { Alert } from './ui/Alert.tsx';
+import { Card } from './ui/Card.tsx';
 
 interface CreateBlogTabProps {
   credentials: WordPressCredentials | null;

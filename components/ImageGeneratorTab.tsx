@@ -1,12 +1,11 @@
-
 import React, { useState } from 'react';
-import { Button } from './ui/Button';
-import { Input } from './ui/Input';
-import { Select } from './ui/Select';
-import { Alert } from './ui/Alert';
-import { Card } from './ui/Card';
-import { generateImage } from '../services/geminiService';
-import type { PostStatus } from '../types';
+import { Button } from './ui/Button.tsx';
+import { Input } from './ui/Input.tsx';
+import { Select } from './ui/Select.tsx';
+import { Alert } from './ui/Alert.tsx';
+import { Card } from './ui/Card.tsx';
+import { generateImage } from '../services/geminiService.ts';
+import type { PostStatus } from '../types.ts';
 
 export const ImageGeneratorTab: React.FC = () => {
     const [prompt, setPrompt] = useState('');

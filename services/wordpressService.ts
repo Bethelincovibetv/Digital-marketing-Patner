@@ -1,5 +1,4 @@
-
-import type { WordPressCredentials, RecentPost } from '../types';
+import type { WordPressCredentials, RecentPost } from '../types.ts';
 
 const getAuthHeader = (credentials: WordPressCredentials) => {
     return 'Basic ' + btoa(`${credentials.username}:${credentials.password}`);

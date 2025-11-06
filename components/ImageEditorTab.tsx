@@ -1,11 +1,10 @@
-
 import React, { useState, useRef } from 'react';
-import { Button } from './ui/Button';
-import { Input } from './ui/Input';
-import { Alert } from './ui/Alert';
-import { Card } from './ui/Card';
-import { editImage } from '../services/geminiService';
-import type { PostStatus } from '../types';
+import { Button } from './ui/Button.tsx';
+import { Input } from './ui/Input.tsx';
+import { Alert } from './ui/Alert.tsx';
+import { Card } from './ui/Card.tsx';
+import { editImage } from '../services/geminiService.ts';
+import type { PostStatus } from '../types.ts';
 
 export const ImageEditorTab: React.FC = () => {
     const [prompt, setPrompt] = useState('');

@@ -1,12 +1,11 @@
-
 import React, { useState } from 'react';
-import { SetupTab } from './components/SetupTab';
-import { CreateBlogTab } from './components/CreateBlogTab';
-import { ManagePostsTab } from './components/ManagePostsTab';
-import { ImageEditorTab } from './components/ImageEditorTab';
-import { ImageGeneratorTab } from './components/ImageGeneratorTab';
-import type { WordPressCredentials } from './types';
-import { TABS } from './constants';
+import { SetupTab } from './components/SetupTab.tsx';
+import { CreateBlogTab } from './components/CreateBlogTab.tsx';
+import { ManagePostsTab } from './components/ManagePostsTab.tsx';
+import { ImageEditorTab } from './components/ImageEditorTab.tsx';
+import { ImageGeneratorTab } from './components/ImageGeneratorTab.tsx';
+import type { WordPressCredentials } from './types.ts';
+import { TABS } from './constants.ts';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>(TABS[0].id);
