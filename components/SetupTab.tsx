@@ -42,7 +42,11 @@ export const SetupTab: React.FC<SetupTabProps> = ({ onCredentialsSet }) => {
       localStorage.setItem('wp_credentials', JSON.stringify(creds));
       onCredentialsSet(creds);
     } catch (error: any) {
-      setStatus({ type: 'error', message: `Connection failed: ${error.message}` });
+      let errorMessage = `Connection failed: ${error.message}`;
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        errorMessage += ". This might be a CORS issue. Please ensure your WordPress site's server is configured to accept requests from this origin.";
+      }
+      setStatus({ type: 'error', message: errorMessage });
       localStorage.removeItem('wp_credentials');
       onCredentialsSet(null);
     }
@@ -56,6 +60,9 @@ export const SetupTab: React.FC<SetupTabProps> = ({ onCredentialsSet }) => {
           <p className="text-gray-400">
             Enter your WordPress site details to connect your account. These will be stored securely in your browser's local storage.
           </p>
+          <div className="p-4 rounded-md bg-yellow-900/50 text-yellow-300 border border-yellow-700 text-sm">
+            <strong>Important:</strong> For this tool to connect to your WordPress site, your server might need to be configured for Cross-Origin Resource Sharing (CORS). If you encounter connection errors, you may need to install a CORS plugin or adjust your server settings to allow requests from this application.
+          </div>
           <Input id="wp-url" label="WordPress Site URL" type="url" placeholder="https://example.com" value={url} onChange={(e) => setUrl(e.target.value)} />
           <Input id="wp-username" label="WordPress Username" type="text" placeholder="your_username" value={username} onChange={(e) => setUsername(e.target.value)} />
           <div>
