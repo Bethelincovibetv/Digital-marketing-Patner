@@ -1,4 +1,4 @@
-import { GoogleGenAI, Modality, Type } from "@google/genai";
+import { GoogleGenAI, Type, Modality } from "@google/genai";
 
 let ai: GoogleGenAI;
 
@@ -12,116 +12,148 @@ const getAi = () => {
     return ai;
 }
 
-// Fix: Implement and export generateBlogPost to resolve missing export error.
-export const generateBlogPost = async (topic: string): Promise<{ title: string; content: string; }> => {
+export const generateBlogPost = async (topic: string, keyword: string, length: string, tone: string, customInstructions: string) => {
     const ai = getAi();
-    const prompt = `Write a blog post about "${topic}". The post should be engaging, well-structured, and written in Markdown format. The response must be a JSON object with two keys: "title" (a catchy title for the blog post) and "content" (the full blog post in Markdown).`;
+
+    const blogLengthMap: { [key: string]: string } = {
+        short: 'around 300 words',
+        medium: 'around 800 words',
+        long: 'around 1500 words',
+    };
+
+    const prompt = `
+        Generate a high-quality, SEO-optimized blog post based on the following details.
+        The output must be a JSON object with two keys: "title" (a string) and "content" (a string of well-formatted HTML).
+        The HTML content should use appropriate tags like <h1>, <h2>, <p>, <ul>, <li>, <strong>, etc. Do not include <html> or <body> tags.
+
+        - **Topic:** ${topic}
+        - **Primary SEO Keyword:** ${keyword} (This keyword should be naturally integrated into the title, headings, and body text.)
+        - **Desired Length:** ${blogLengthMap[length]}
+        - **Writing Tone:** ${tone}
+        - **Custom Instructions:** ${customInstructions || 'None'}
+
+        Please ensure the blog post is engaging, informative, and well-structured.
+    `;
 
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-pro',
         contents: prompt,
         config: {
-            responseMimeType: 'application/json',
+            responseMimeType: "application/json",
             responseSchema: {
                 type: Type.OBJECT,
                 properties: {
-                    title: { type: Type.STRING, description: "A catchy title for the blog post." },
-                    content: { type: Type.STRING, description: "The full blog post content in Markdown format." }
+                    title: { type: Type.STRING },
+                    content: { type: Type.STRING }
                 },
                 required: ['title', 'content']
-            }
+            },
+            thinkingConfig: { thinkingBudget: 32768 }
         }
     });
     
-    let jsonText = response.text.trim();
-    if (jsonText.startsWith('```json')) {
-        jsonText = jsonText.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-    }
-
-    try {
-        const parsed = JSON.parse(jsonText);
-        if (parsed.title && parsed.content) {
-            return parsed;
-        } else {
-            throw new Error("Invalid JSON structure in response.");
-        }
-    } catch (e) {
-        console.error("Failed to parse JSON response from Gemini:", response.text, e);
-        throw new Error("Failed to generate blog post due to invalid response format.");
-    }
+    // The response text is already a JSON string because of responseMimeType
+    const jsonString = response.text.trim();
+    return JSON.parse(jsonString);
 };
 
-// Fix: Implement and export generateFeaturedImage to resolve missing export error.
-export const generateFeaturedImage = async (topic: string): Promise<string> => {
+export const generateImage = async (prompt: string, aspectRatio: string): Promise<string> => {
     const ai = getAi();
-    const prompt = `Create a visually stunning and relevant featured image for a blog post about "${topic}". The image should be high-quality, eye-catching, and suitable for a blog header. The aspect ratio should be 16:9.`;
-
     const response = await ai.models.generateImages({
         model: 'imagen-4.0-generate-001',
         prompt: prompt,
         config: {
-          numberOfImages: 1,
-          outputMimeType: 'image/jpeg',
-          aspectRatio: '16:9',
+            numberOfImages: 1,
+            outputMimeType: 'image/png',
+            aspectRatio: aspectRatio as "1:1" | "3:4" | "4:3" | "9:16" | "16:9",
         },
     });
 
-    if (response.generatedImages && response.generatedImages.length > 0 && response.generatedImages[0].image.imageBytes) {
-        const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
-        return `data:image/jpeg;base64,${base64ImageBytes}`;
-    }
-
-    throw new Error("Image generation failed, no image data returned.");
+    const base64ImageBytes = response.generatedImages[0].image.imageBytes;
+    return `data:image/png;base64,${base64ImageBytes}`;
 };
 
-export const generateThumbnail = async (imageBase64: string, title: string, style: string): Promise<string> => {
+export const editImage = async (base64Image: string, prompt: string): Promise<string> => {
     const ai = getAi();
-
-    if (!imageBase64.includes(';base64,')) {
-        throw new Error('Invalid base64 image format.');
-    }
-
-    const parts = imageBase64.split(';base64,');
-    const mimeType = parts[0].replace('data:', '');
-    const base64Data = parts[1];
-
-    const prompt = `
-        Create an eye-catching YouTube thumbnail with a 16:9 aspect ratio based on the provided image for a video titled "${title}".
-        The video style is "${style}".
-        Make the thumbnail vibrant, engaging, and easy to read at small sizes.
-        You can add stylized text of the title, graphical elements, or adjust the image to make it more dramatic.
-        Do not change the main subject of the image.
-        The output must be a single image.
-    `;
-
-    const imagePart = {
-        inlineData: {
-            data: base64Data,
-            mimeType: mimeType,
-        },
-    };
-
-    const textPart = {
-        text: prompt,
-    };
+    const mimeType = base64Image.substring(base64Image.indexOf(":") + 1, base64Image.indexOf(";"));
+    const imageData = base64Image.split(',')[1];
 
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
-        contents: { parts: [imagePart, textPart] },
+        contents: {
+            parts: [
+                { inlineData: { data: imageData, mimeType: mimeType } },
+                { text: prompt },
+            ],
+        },
         config: {
             responseModalities: [Modality.IMAGE],
         },
     });
-    
-    if (response.candidates && response.candidates[0].content.parts) {
-        for (const part of response.candidates[0].content.parts) {
-            if (part.inlineData) {
-                const base64ImageBytes: string = part.inlineData.data;
-                const resultMimeType = part.inlineData.mimeType;
-                return `data:${resultMimeType};base64,${base64ImageBytes}`;
-            }
+
+    for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) {
+            const base64ImageBytes: string = part.inlineData.data;
+            return `data:image/png;base64,${base64ImageBytes}`;
         }
     }
+    throw new Error("No image was generated by the model.");
+};
 
-    throw new Error("Image generation failed, no image data returned.");
+export const generateSpeech = async (text: string): Promise<AudioBuffer> => {
+    const ai = getAi();
+    const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-preview-tts",
+        contents: [{ parts: [{ text: text }] }],
+        config: {
+            responseModalities: [Modality.AUDIO],
+            speechConfig: {
+                voiceConfig: {
+                    prebuiltVoiceConfig: { voiceName: 'Kore' },
+                },
+            },
+        },
+    });
+
+    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (!base64Audio) {
+        throw new Error("No audio data received from API.");
+    }
+    
+    // Polyfill for webkitAudioContext
+    // FIX: Cast window to any to access webkitAudioContext for older browser compatibility.
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    const outputAudioContext = new AudioContext({ sampleRate: 24000 });
+
+    const decode = (base64: string) => {
+        const binaryString = atob(base64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes;
+    }
+
+    const decodeAudioData = async (
+        data: Uint8Array,
+        ctx: AudioContext,
+        sampleRate: number,
+        numChannels: number,
+    ): Promise<AudioBuffer> => {
+        const dataInt16 = new Int16Array(data.buffer);
+        const frameCount = dataInt16.length / numChannels;
+        const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+
+        for (let channel = 0; channel < numChannels; channel++) {
+            const channelData = buffer.getChannelData(channel);
+            for (let i = 0; i < frameCount; i++) {
+                channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+            }
+        }
+        return buffer;
+    }
+    
+    const decodedBytes = decode(base64Audio);
+    return await decodeAudioData(decodedBytes, outputAudioContext, 24000, 1);
 };

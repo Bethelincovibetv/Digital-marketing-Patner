@@ -1,139 +1,166 @@
-import React, { useState } from 'react';
-import { Button } from './ui/Button.tsx';
-import { Input } from './ui/Input.tsx';
-import { Textarea } from './ui/Textarea.tsx';
-import { Alert } from './ui/Alert.tsx';
-import { Card } from './ui/Card.tsx';
-import { generateBlogPost, generateFeaturedImage } from '../services/geminiService.ts';
-import { postArticle } from '../services/wordpressService.ts';
-import type { AppStatus, GeneratedPost, WordPressCredentials } from '../types.ts';
+import React, { useState, useRef } from 'react';
+import type { WordPressCredentials, PostStatus } from '../types';
+import { generateBlogPost, generateSpeech } from '../services/geminiService';
+import { publishPost } from '../services/wordpressService';
+import { Button } from './ui/Button';
+import { Input } from './ui/Input';
+import { Select } from './ui/Select';
+import { Textarea } from './ui/Textarea';
+import { Alert } from './ui/Alert';
+import { Card } from './ui/Card';
 
-const CREDENTIALS_KEY = 'wp_credentials';
+interface CreateBlogTabProps {
+  credentials: WordPressCredentials | null;
+}
 
-export const CreateBlogTab: React.FC = () => {
-    const [topic, setTopic] = useState('');
-    const [status, setStatus] = useState<AppStatus>({ type: 'idle', message: '' });
-    const [generatedPost, setGeneratedPost] = useState<GeneratedPost | null>(null);
+interface BlogPost {
+  title: string;
+  content: string;
+}
 
-    const handleGenerate = async () => {
-        if (!topic) {
-            setStatus({ type: 'error', message: 'Please enter a blog post topic.' });
-            return;
-        }
-        setStatus({ type: 'loading', message: 'Generating post with AI... This can take a moment.' });
-        setGeneratedPost(null);
+export const CreateBlogTab: React.FC<CreateBlogTabProps> = ({ credentials }) => {
+  const [topic, setTopic] = useState('');
+  const [keyword, setKeyword] = useState('');
+  const [length, setLength] = useState('medium');
+  const [tone, setTone] = useState('professional');
+  const [customInstructions, setCustomInstructions] = useState('');
 
-        try {
-            const [postContent, featuredImage] = await Promise.all([
-                generateBlogPost(topic),
-                generateFeaturedImage(topic)
-            ]);
+  const [generatedPost, setGeneratedPost] = useState<BlogPost | null>(null);
+  const [generationStatus, setGenerationStatus] = useState<PostStatus>({ type: 'idle', message: '' });
+  const [publishStatus, setPublishStatus] = useState<PostStatus>({ type: 'idle', message: '' });
+  const [ttsStatus, setTtsStatus] = useState<'idle' | 'loading' | 'playing' | 'error'>('idle');
+  
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
-            setGeneratedPost({
-                title: postContent.title,
-                content: postContent.content,
-                imageBase64: featuredImage
-            });
-            setStatus({ type: 'success', message: 'AI post generated! Review and post to WordPress.' });
+  const handleGenerate = async () => {
+    setGenerationStatus({ type: 'loading', message: 'Generating blog post with Gemini...' });
+    setGeneratedPost(null);
+    setPublishStatus({ type: 'idle', message: '' });
 
-        } catch (error: any) {
-            setStatus({ type: 'error', message: `Generation failed: ${error.message}` });
-        }
-    };
+    try {
+      const post = await generateBlogPost(topic, keyword, length, tone, customInstructions);
+      setGeneratedPost(post);
+      setGenerationStatus({ type: 'success', message: 'Blog post generated successfully!' });
+    } catch (error: any) {
+      setGenerationStatus({ type: 'error', message: `Generation failed: ${error.message}` });
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!credentials || !generatedPost) {
+      setPublishStatus({ type: 'error', message: 'Missing credentials or generated content.' });
+      return;
+    }
+    setPublishStatus({ type: 'loading', message: 'Publishing to WordPress...' });
+    try {
+      const postUrl = await publishPost(credentials, generatedPost.title, generatedPost.content);
+      setPublishStatus({ type: 'success', message: `Successfully published! View post: ${postUrl}` });
+    } catch (error: any) {
+      setPublishStatus({ type: 'error', message: `Publishing failed: ${error.message}` });
+    }
+  };
+
+  const handleTextToSpeech = async () => {
+    if (!generatedPost) return;
     
-    const handlePostToWordPress = async () => {
-        const storedCreds = localStorage.getItem(CREDENTIALS_KEY);
-        if (!storedCreds) {
-            setStatus({ type: 'error', message: 'WordPress credentials not found. Please set them up in the Setup tab.' });
-            return;
-        }
-        if (!generatedPost) {
-            setStatus({ type: 'error', message: 'No generated post to publish.' });
-            return;
-        }
+    if (audioSourceRef.current) {
+        audioSourceRef.current.stop();
+        audioSourceRef.current = null;
+    }
+    if (audioContextRef.current) {
+        await audioContextRef.current.close();
+        audioContextRef.current = null;
+    }
 
-        setStatus({ type: 'loading', message: 'Publishing post to WordPress...' });
-        
-        try {
-            const creds: WordPressCredentials = JSON.parse(storedCreds);
-            const result = await postArticle(creds, generatedPost.title, generatedPost.content, generatedPost.imageBase64);
-            setStatus({ type: 'success', message: `Post published successfully! <a href="${result.link}" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-white">View Post</a>` });
-        } catch (error: any) {
-             setStatus({ type: 'error', message: `Failed to post: ${error.message}` });
-        }
-    };
-    
-    return (
-        <div className="space-y-8">
-            <Card>
+    setTtsStatus('loading');
+    try {
+        const plainText = generatedPost.content.replace(/<[^>]*>?/gm, ' ');
+        const audioBuffer = await generateSpeech(plainText);
+
+        // FIX: Cast window to any to access webkitAudioContext for older browser compatibility.
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        const context = new AudioContext();
+        audioContextRef.current = context;
+
+        const source = context.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(context.destination);
+        source.onended = () => {
+            setTtsStatus('idle');
+            audioSourceRef.current = null;
+        };
+        source.start(0);
+        audioSourceRef.current = source;
+        setTtsStatus('playing');
+    } catch (error) {
+        console.error("TTS Error:", error);
+        setTtsStatus('error');
+    }
+  };
+
+  if (!credentials) {
+    return <Alert type="info" message="Please configure your WordPress credentials in the Setup tab first." />;
+  }
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <Card>
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold text-white">1. Define Your Blog Post</h2>
+          <Input id="topic" label="Blog Topic" value={topic} onChange={e => setTopic(e.target.value)} placeholder="e.g., The Future of Renewable Energy" />
+          <Input id="keyword" label="Primary SEO Keyword" value={keyword} onChange={e => setKeyword(e.target.value)} placeholder="e.g., solar power innovation" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Select id="length" label="Blog Length" value={length} onChange={e => setLength(e.target.value)}>
+              <option value="short">Short (~300 words)</option>
+              <option value="medium">Medium (~800 words)</option>
+              <option value="long">Long (~1500 words)</option>
+            </Select>
+            <Select id="tone" label="Writing Tone" value={tone} onChange={e => setTone(e.target.value)}>
+              <option value="professional">Professional</option>
+              <option value="casual">Casual</option>
+              <option value="authoritative">Authoritative</option>
+            </Select>
+          </div>
+          <Textarea id="instructions" label="Custom Instructions (Optional)" value={customInstructions} onChange={e => setCustomInstructions(e.target.value)} rows={4} placeholder="e.g., Include a section about battery storage. Mention Tesla." />
+          <div className="pt-2">
+            <Button onClick={handleGenerate} isLoading={generationStatus.type === 'loading'} disabled={!topic || !keyword}>
+              Generate Blog Post
+            </Button>
+          </div>
+        </div>
+      </Card>
+      
+      <div className="space-y-6">
+        <Card>
+            <h2 className="text-xl font-semibold text-white mb-4">2. Preview & Publish</h2>
+            {generationStatus.type !== 'idle' && <div className="mb-4"><Alert type={generationStatus.type === 'loading' ? 'info' : generationStatus.type} message={generationStatus.message} /></div>}
+            
+            {generatedPost ? (
                 <div className="space-y-4">
-                    <h2 className="text-xl font-semibold text-white">1. Enter Your Blog Topic</h2>
-                    <p className="text-sm text-gray-400">Provide a topic, keyword, or title idea. The AI will generate a full blog post and a featured image based on your input.</p>
-                    <Input
-                        id="topic"
-                        label="Blog Post Topic"
-                        value={topic}
-                        onChange={(e) => setTopic(e.target.value)}
-                        placeholder="e.g., The Future of Renewable Energy"
-                        disabled={status.type === 'loading'}
-                    />
-                    <div className="pt-2">
-                        <Button onClick={handleGenerate} isLoading={status.type === 'loading' && !generatedPost} disabled={status.type === 'loading'}>
-                            Generate AI Post
+                    <div className="bg-gray-900/50 p-4 rounded-lg border border-gray-700 max-h-[60vh] overflow-y-auto">
+                        <h3 className="text-2xl font-bold text-indigo-300 mb-4">{generatedPost.title}</h3>
+                        <div className="prose prose-invert prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: generatedPost.content }} />
+                    </div>
+                     <div className="flex flex-wrap gap-4">
+                        <Button onClick={handlePublish} isLoading={publishStatus.type === 'loading'}>
+                            Publish to WordPress
+                        </Button>
+                        <Button onClick={handleTextToSpeech} isLoading={ttsStatus === 'loading'} variant="secondary">
+                            {ttsStatus === 'playing' ? 'Playing...' : 'Read Aloud'}
                         </Button>
                     </div>
                 </div>
-            </Card>
-
-            {status.type !== 'idle' && (
-                <Alert 
-                    type={status.type} 
-                    message={status.message}
-                />
-            )}
-
-            {status.type === 'loading' && !generatedPost && (
-                 <Card className="text-center animate-pulse-fast">
-                    <p className="text-lg text-indigo-300">Generating content and image...</p>
-                    <p className="text-sm text-gray-400">This might take up to a minute.</p>
-                </Card>
-            )}
-
-            {generatedPost && (
-                 <div className="p-px bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-2xl">
-                    <Card className="border-none bg-gray-900/80 backdrop-blur-sm">
-                        <div className="space-y-6">
-                            <h2 className="text-xl font-semibold text-white">2. Review & Publish</h2>
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                <div className="lg:col-span-2 space-y-4">
-                                     <Input
-                                        id="post-title"
-                                        label="Generated Title"
-                                        value={generatedPost.title}
-                                        onChange={(e) => setGeneratedPost(p => p ? {...p, title: e.target.value} : null)}
-                                    />
-                                     <Textarea
-                                        id="post-content"
-                                        label="Generated Content (Markdown)"
-                                        value={generatedPost.content}
-                                        onChange={(e) => setGeneratedPost(p => p ? {...p, content: e.target.value} : null)}
-                                        rows={20}
-                                     />
-                                </div>
-                                <div className="space-y-4">
-                                    <h3 className="block text-sm font-medium text-gray-300 mb-1">Generated Image</h3>
-                                    <div className="aspect-video bg-black/30 rounded-lg overflow-hidden border border-gray-700">
-                                         <img src={generatedPost.imageBase64} alt="Generated featured image" className="w-full h-full object-cover" />
-                                    </div>
-                                    <Button onClick={handlePostToWordPress} isLoading={status.type === 'loading' && !!generatedPost}>
-                                        Publish to WordPress
-                                    </Button>
-                                </div>
-                            </div>
-                        </div>
-                    </Card>
+            ) : (
+                <div className="text-center py-12 text-gray-500">
+                    <p>Generated content will appear here.</p>
                 </div>
             )}
-        </div>
-    );
+            
+        </Card>
+        {publishStatus.type !== 'idle' && <Alert type={publishStatus.type} message={publishStatus.message} />}
+        {ttsStatus === 'error' && <Alert type="error" message="Failed to generate audio."/>}
+      </div>
+    </div>
+  );
 };
